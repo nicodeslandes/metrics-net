@@ -68,7 +68,7 @@ namespace metrics.Stats
             }
             else
             {
-                var random = Math.Abs(Support.Random.NextLong()) % count;
+                var random = Math.Abs(Support.Random.NextInt()) % count;
                 if (random < _values.Length)
                 {
                     var index = (int) random;

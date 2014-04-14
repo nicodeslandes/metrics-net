@@ -1,6 +1,4 @@
-﻿using System;
-using System.Security.Cryptography;
-using System.Threading;
+﻿using System.Threading;
 
 namespace metrics.Support
 {
@@ -9,14 +7,17 @@ namespace metrics.Support
     /// </summary>
     internal class Random
     {
-		private static readonly ThreadLocal<RandomNumberGenerator> _random = new ThreadLocal<RandomNumberGenerator>(RandomNumberGenerator.Create);
-        
-        public static long NextLong()
+		private static readonly ThreadLocal<System.Random> RandomGenerator =
+            new ThreadLocal<System.Random>(() => new System.Random());
+
+        public static double NextDouble()
         {
-            var buffer = new byte[sizeof(long)];
-            _random.Value.GetBytes(buffer);
-            var value = BitConverter.ToInt64(buffer, 0);
-            return value;
+            return RandomGenerator.Value.NextDouble();
+        }
+
+        public static int NextInt()
+        {
+             return RandomGenerator.Value.Next();
         }
     }
 }

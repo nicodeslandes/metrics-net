@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.Serialization;
+using metrics.Util;
 
 
 namespace metrics.Core
@@ -48,7 +49,7 @@ namespace metrics.Core
             finally
             {
                 stopwatch.Stop();
-                Update(stopwatch.ElapsedTicks * (1000L * 1000L * 1000L) / Stopwatch.Frequency);
+                Update(stopwatch.ElapsedNanos());
             }
         }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.Serialization;
+using metrics.Util;
 
 namespace metrics.Core
 {
@@ -39,14 +40,14 @@ namespace metrics.Core
       /// <returns></returns>
       public CallbackTimerMetricContext Time()
       {
-         var result = new CallbackTimerMetricContext(t => RecordElapsedTicks(t));
+         var result = new CallbackTimerMetricContext(RecordElapsedNanos);
          result.Start();
          return result;
       }
 
-      private void RecordElapsedTicks(long ticks)
+      private void RecordElapsedNanos(long nanos)
       {
-         Update(ticks * (1000L * 1000L * 1000L) / Stopwatch.Frequency);
+         Update(nanos);
       }
 
       public class CallbackTimerMetricContext
@@ -63,7 +64,6 @@ namespace metrics.Core
             _ticksCallback = ticksCallback;
          }
 
-
          internal void Start()
          {
             _stopwatch.Start();
@@ -72,7 +72,7 @@ namespace metrics.Core
          public void Stop()
          {
             _stopwatch.Stop();
-            _ticksCallback(_stopwatch.ElapsedTicks);
+            _ticksCallback(_stopwatch.ElapsedNanos());
          }
       }
 

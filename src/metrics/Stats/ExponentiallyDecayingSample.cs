@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
 using metrics.Support;
+using metrics.Util;
 
 namespace metrics.Stats
 {
@@ -30,6 +32,7 @@ namespace metrics.Stats
         private readonly AtomicLong _count = new AtomicLong(0);
         private VolatileLong _startTime;
         private readonly AtomicLong _nextScaleTime = new AtomicLong(0);
+        private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
 
         /// <param name="reservoirSize">The number of samples to keep in the sampling reservoir</param>
         /// <param name="alpha">The exponential decay factor; the higher this is, the more biased the sample will be towards newer values</param>
@@ -73,7 +76,7 @@ namespace metrics.Stats
             _lock.EnterReadLock();
             try
             {
-                var priority = Weight(timestamp - _startTime) / Support.Random.NextLong();
+                var priority = Weight(timestamp - _startTime) / Support.Random.NextDouble();
                 var newCount = _count.IncrementAndGet();
                 if(newCount <= _reservoirSize)
                 {
@@ -99,7 +102,7 @@ namespace metrics.Stats
                 _lock.ExitReadLock();
             }
 
-            var now = DateTime.Now.Ticks;
+            var now = _stopwatch.ElapsedNanos();
             var next = _nextScaleTime.Get();
             if(now >= next)
             {
@@ -126,9 +129,9 @@ namespace metrics.Stats
             }
         }
 
-        private static long Tick()
+        private long Tick()
         {
-            return DateTime.Now.Ticks;
+            return _stopwatch.ElapsedNanos();
         }
 
         private double Weight(long t)

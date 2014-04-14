@@ -11,7 +11,7 @@ namespace metrics.Tests.Support
         {
             for(var i = 0; i < 1000; i++)
             {
-                long random = metrics.Support.Random.NextLong();
+                var random = metrics.Support.Random.NextInt();
                 Trace.WriteLine(random);
             }
         }
