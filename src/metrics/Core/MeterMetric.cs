@@ -33,7 +33,7 @@ namespace metrics.Core
             {
                 while (!meter._token.IsCancellationRequested)
                 {
-	                await Task.Delay(Interval, meter._token.Token);
+	                await TaskEx.Delay(Interval, meter._token.Token);
                     meter.Tick();
                 }
             }, meter._token.Token);

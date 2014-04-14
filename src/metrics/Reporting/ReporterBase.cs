@@ -42,7 +42,7 @@ namespace metrics.Reporting
                 OnStarted();
                 while (!Token.IsCancellationRequested)
                 {
-                    await Task.Delay(interval, Token.Token);
+                    await TaskEx.Delay(interval, Token.Token);
 	                if (!Token.IsCancellationRequested)
 		                Run();
                 }
