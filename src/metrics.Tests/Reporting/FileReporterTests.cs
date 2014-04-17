@@ -110,6 +110,7 @@ namespace metrics.Tests.Reporting
                             if (runs == ticks)
                             {
                                 block.Set();
+                                break;
                             }
                         }
                     }

@@ -140,10 +140,10 @@ namespace metrics.Core
       /// </summary>
       public ICollection<double> Values
       {
-         get
-         {
-            return _histogram.Values.Select(value => ConvertFromNanos(value)).ToList();
-         }
+          get
+          {
+              return _histogram.Values.Select(value => ConvertFromNanos(value)).ToList();
+          }
       }
 
       /// <summary>

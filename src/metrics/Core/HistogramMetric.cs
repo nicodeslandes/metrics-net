@@ -187,12 +187,12 @@ namespace metrics.Core
 		/// <summary>
 		/// Returns a list of all values in the histogram's sample
 		/// </summary>
-		public ICollection<long> Values
-		{
-			get { return _sample.Values; }
-		}
+        public ICollection<long> Values
+        {
+            get { return _sample.Values; }
+        }
 
-		private double Variance
+	    private double Variance
 		{
 			get { return Count <= 1 ? 0.0 : BitConverter.Int64BitsToDouble(_varianceS.Get())/(Count - 1); }
 		}

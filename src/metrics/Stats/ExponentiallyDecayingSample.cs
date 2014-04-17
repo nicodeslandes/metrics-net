@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Serialization;
-using System.Threading;
 using metrics.Support;
 using metrics.Util;
 
@@ -23,23 +21,24 @@ namespace metrics.Stats
     /// </see>
     public class ExponentiallyDecayingSample : ISample<ExponentiallyDecayingSample>
     {
+        private const int DateTimeTicksPerSeconds = 10000000;
         private static readonly long RescaleThreshold = TimeUnit.Hours.ToNanos(1);
+
         /* Implemented originally as ConcurrentSkipListMap, so lookups will be much slower */
-        private readonly ConcurrentDictionary<double, long> _values;
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly SortedDictionary<double, long> _values;
+        private readonly object _lock = new object();
         private readonly int _reservoirSize;
         private readonly double _alpha;
         private readonly AtomicLong _count = new AtomicLong(0);
-        private VolatileLong _startTime;
-        private readonly AtomicLong _nextScaleTime = new AtomicLong(0);
+        private VolatileLong _startTimeInSeconds;
+        private readonly AtomicLong _nextScaleTimeNanos = new AtomicLong(0);
         private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
 
         /// <param name="reservoirSize">The number of samples to keep in the sampling reservoir</param>
         /// <param name="alpha">The exponential decay factor; the higher this is, the more biased the sample will be towards newer values</param>
         public ExponentiallyDecayingSample(int reservoirSize, double alpha)
         {
-            _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-            _values = new ConcurrentDictionary<double, long>();
+            _values = new SortedDictionary<double, long>();
             _alpha = alpha;
             _reservoirSize = reservoirSize;
             Clear();
@@ -52,7 +51,7 @@ namespace metrics.Stats
         {
             _values.Clear();
             _count.Set(0);
-            _startTime = Tick();
+            _startTimeInSeconds = CurrentTimeInSeconds();
         }
         
         /// <summary>
@@ -68,42 +67,34 @@ namespace metrics.Stats
         /// </summary>
         public void Update(long value)
         {
-            Update(value, Tick());
+            Update(value, CurrentTimeInSeconds());
         }
 
         private void Update(long value, long timestamp)
         {
-            _lock.EnterReadLock();
-            try
+            // WARNING! This used to be a ReadLock
+            // But SortedDictionary isn't thread-safe, so we now have to take a full lock
+            lock(_lock)
             {
-                var priority = Weight(timestamp - _startTime) / Support.Random.NextDouble();
+                var priority = Weight(timestamp - _startTimeInSeconds) / Support.Random.NextDouble();
                 var newCount = _count.IncrementAndGet();
                 if(newCount <= _reservoirSize)
                 {
-                    _values.AddOrUpdate(priority, value, (p, v) => v);
+                    _values[priority] = value;
                 }
                 else
                 {
                     var first = _values.Keys.First();
                     if(first < priority)
                     {
-                        _values.AddOrUpdate(priority, value, (p, v) => v);
-
-                        long removed;
-                        while(!_values.TryRemove(first, out removed))
-                        {
-                            first = _values.Keys.First();
-                        }
+                        _values[priority] = value;
+                        _values.Remove(first);
                     }
                 }
             }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
 
             var now = _stopwatch.ElapsedNanos();
-            var next = _nextScaleTime.Get();
+            var next = _nextScaleTimeNanos.Get();
             if(now >= next)
             {
                 Rescale(now, next);
@@ -117,21 +108,18 @@ namespace metrics.Stats
         {
             get
             {
-                _lock.EnterReadLock();
-                try
+                // WARNING! This used to be a ReadLock
+                // But SortedDictionary isn't thread-safe, so we now have to take a full lock
+                lock(_lock)
                 {
                     return new List<long>(_values.Values);
-                }
-                finally
-                {
-                    _lock.ExitReadLock();
                 }
             }
         }
 
-        private long Tick()
+        private long CurrentTimeInSeconds()
         {
-            return _stopwatch.ElapsedNanos();
+            return DateTime.Now.Ticks / DateTimeTicksPerSeconds;
         }
 
         private double Weight(long t)
@@ -162,42 +150,40 @@ namespace metrics.Stats
         /// <param name="next"></param>
         private void Rescale(long now, long next)
         {
-            if (!_nextScaleTime.CompareAndSet(next, now + RescaleThreshold))
+            if (!_nextScaleTimeNanos.CompareAndSet(next, now + RescaleThreshold))
             {
                 return;
             }
 
-            _lock.EnterWriteLock();
-            try
+            lock(_lock)
             {
-                var oldStartTime = _startTime;
-                _startTime = Tick();
+                var oldStartTime = _startTimeInSeconds;
+                _startTimeInSeconds = CurrentTimeInSeconds();
                 var keys = new List<double>(_values.Keys);
                 foreach (var key in keys)
                 {
-                    long value;
-                    _values.TryRemove(key, out value);
-                    _values.AddOrUpdate(key*Math.Exp(-_alpha*(_startTime - oldStartTime)), value, (k, v) => v);
+                    long value = _values[key];
+                    _values.Remove(key);
+                    _values[key * Math.Exp(-_alpha * (_startTimeInSeconds - oldStartTime))] = value;
                 }
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
             }
         }
 
+        /// <summary>
+        /// Returns a Copy of the current sample
+        /// </summary>
         [IgnoreDataMember]
         public ExponentiallyDecayingSample Copy
         {
             get
             {
                 var copy = new ExponentiallyDecayingSample(_reservoirSize, _alpha);
-                copy._startTime.Set(_startTime);
+                copy._startTimeInSeconds.Set(_startTimeInSeconds);
                 copy._count.Set(_count);
-                copy._nextScaleTime.Set(_nextScaleTime);
+                copy._nextScaleTimeNanos.Set(_nextScaleTimeNanos);
                 foreach(var value in _values)
                 {
-                    copy._values.AddOrUpdate(value.Key, value.Value, (k, v) => v);
+                    copy._values[value.Key] = value.Value;
                 }
                 return copy;
             }

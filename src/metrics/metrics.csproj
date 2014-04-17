@@ -104,6 +104,7 @@
     <Compile Include="Support\VolatileLong.cs" />
     <Compile Include="Util\NamedThreadFactory.cs" />
     <Compile Include="Support\ThreadGroup.cs" />
+    <Compile Include="Util\StopwatchExtensions.cs" />
     <Compile Include="Util\Utils.cs" />
   </ItemGroup>
   <ItemGroup>
